@@ -1,8 +1,12 @@
 --LIBS
-LootTracker = LibStub("AceAddon-3.0"):NewAddon("Loot Tracker", "AceConsole-3.0", "AceEvent-3.0")
+local LootTracker = LibStub("AceAddon-3.0"):NewAddon("Loot Tracker", "AceConsole-3.0", "AceEvent-3.0")
+local AceGUI = LibStub("AceGUI-3.0")
+local ScrollingTable = LibStub("ScrollingTable")
+
+local LT_Lootframe
 
 --FUNCTIONS
-function removeUTF8(str)
+local function removeUTF8(str)
 	--REPLACE UTF8 BULLSHIT
 	str = str:gsub("á","a")
 	str = str:gsub("à","a")
@@ -42,14 +46,14 @@ function removeUTF8(str)
 	return str
 end
 
-function in_array(arr, str)
+local function in_array(arr, str)
 	for k in pairs(arr) do
 		if k == str then return true end
 	end
 	return false
 end
 
-function split(inputstr, sep)
+local function split(inputstr, sep)
         if sep == nil then
                 sep = "%s"
         end
@@ -60,7 +64,7 @@ function split(inputstr, sep)
         return t
 end
 
-function searchArrInStr(str, arr)
+local function searchArrInStr(str, arr)
 	if str == nil then return false end
 	str = string.lower(str)
 	
@@ -74,8 +78,8 @@ function searchArrInStr(str, arr)
 	return false
 end
 
-function getInfoFromStrLoot(str)
-	arg2 = str
+local function getInfoFromStrLoot(str)
+	local arg2 = str
 
 	local patternPlayerName = "^%a*"
 	local playerName = string.match(arg2, patternPlayerName) -- foo
@@ -89,7 +93,7 @@ function getInfoFromStrLoot(str)
 	return playerName, itemName, itemLink, numberLoot
 end
 
-function stringify(arr)
+local function stringify(arr)
 	local str = ""
 	for k in pairs(arr) do
 		for kk in pairs(arr[k]) do
@@ -105,7 +109,7 @@ end
 --FUNCTIONS
 
 --INIT VAR
-local defaults = { 
+local defaults = {
     profile = {
 		active = false,
 		terms = "",
@@ -113,8 +117,11 @@ local defaults = {
         qDebug = false,
 		alertScreen = false,
 		alertChat = false,
-    }, 
-} 
+    },
+	char = {
+		result = {}
+	}
+}
 
 local options = {
     name = "Loot Tracker",
@@ -194,45 +201,67 @@ local options = {
 }
 --INIT VAR
 
-function LootTracker:OnInitialize()
-    -- Called when the addon is loaded
-	self.db = LibStub("AceDB-3.0"):New("LootTrackerDB", defaults, true)
-	LibStub("AceConfig-3.0"):RegisterOptionsTable("LootTracker", options, {"loottracker", "lt"})
-	self.optionsFrame = LibStub ("AceConfigDialog-3.0"): AddToBlizOptions ("LootTracker", "LootTracker") 
-	self:RegisterChatCommand("lt", "ChatCommand") 
-    self:RegisterChatCommand("loottracker", "ChatCommand") 
-
-	LT_Lootframe = LibStub("AceGUI-3.0"):Create("Frame")
-	LT_Lootframe:SetTitle("Loot Frame")
-	LT_Lootframe:SetStatusText("AceGUI-3.0 Example Container Frame")
-	LT_Lootframe:SetCallback("OnClose", function(widget) LibStub("AceGUI-3.0"):Release(widget) end)
-	LT_Lootframe:SetLayout("Flow")
-
-	local desc = LibStub("AceGUI-3.0"):Create("Label")
-	desc:SetText("This is a label")
-	desc:SetFullWidth(true)
-	LT_Lootframe:AddChild(desc)
-
-	LT_Lootframe:Hide()
-
-	self:Print("LootTracker initialized")
-end
-
-function LootTracker:OnEnable()
-    -- Called when the addon is enabled
-	self:RegisterEvent("CHAT_MSG_LOOT")
-end
-
-function LootTracker:OnDisable()
-    -- Called when the addon is disabled
-end
-
 function LootTracker:Debug(strName, tData) 
     if ViragDevTool_AddData and self.db.profile.qDebug then 
         ViragDevTool_AddData(tData, strName) 
 	end
 end
 
+function LootTracker:OnInitialize()
+    -- Called when the addon is loaded
+	self.db = LibStub("AceDB-3.0"):New("LootTrackerDB", defaults, true)
+	LibStub("AceConfig-3.0"):RegisterOptionsTable("LootTracker", options, {"loottracker", "lt"})
+	self.optionsFrame = LibStub ("AceConfigDialog-3.0"): AddToBlizOptions ("LootTracker", "LootTracker") 
+
+	self:RegisterChatCommand("lt", "ChatCommand") 
+    self:RegisterChatCommand("loottracker", "ChatCommand") 
+
+	self:Print("LootTracker initialized")
+end
+
+function LootTracker:OnEnable()
+	self:Debug("OnEnable", "LootTracker")
+
+    -- Called when the addon is enabled
+	self:RegisterEvent("CHAT_MSG_LOOT")
+
+	local frame = AceGUI:Create("Frame")
+	frame:SetTitle("Loot Frame")
+	frame:SetStatusText("AceGUI-3.0 Example Container Frame")
+	--frame:SetCallback("OnClose", function(widget) 
+	--	self:Debug("Releasing widget")
+	--	AceGUI:Release(widget) 
+	--end)
+	frame:SetLayout("Flow")
+	frame:Hide()
+
+	local t_data = self:convertTable()
+	local t_options = {
+		{["name"] = "Name", ["width"] = 50, ["align"] = "LEFT",},
+		{["name"] = "Item", ["width"] = 200, ["align"] = "LEFT"},
+		{["name"] = "Quantity", ["width"] = 50, ["align"] = "MIDDLE"}
+	}
+
+	local table = ScrollingTable:CreateST(t_options, 30, 10, nil, frame.content.obj.frame)
+	table:SetData(t_data, true)
+	--table:SortData()
+	--table:Hide()
+
+	self.lootFrame = frame
+	self.lootTable = table
+end
+
+function LootTracker:OnDisable()
+    -- Called when the addon is disabled
+end
+
+--[[ 
+{
+	PlayerName
+		itemLink, itemName, itemQuantity
+		itemLink
+}
+--]]
 function LootTracker:CHAT_MSG_LOOT(arg1,arg2,_,_,_,arg6)
 	if self.db.profile.active == false then return end
 	self:Debug(arg2, "LootTracker: CHAT_MSG_LOOT event")
@@ -249,14 +278,19 @@ function LootTracker:CHAT_MSG_LOOT(arg1,arg2,_,_,_,arg6)
 	item:ContinueOnItemLoad(function()
 		self:Debug(item, "LootTracker: Async ContinueOnItemLoad called")
 
-		local name = item:GetItemName() 
+		local db = self.db.profile.result
+
+		local name = item:GetItemName()
 		local icon = item:GetItemIcon()
 		local quality = item:GetItemQuality()
-		
+
 
 		if quality and quality < 1 then
 			self:Debug("Skipping loot by rarity", "LootTracker: Rarity check")
 		else
+			-- Change data structure for ID
+			-- how to get user ID safely ?
+			-- Check if loot is in whitelist
 			if searchArrInStr(lootName, arrTerms) or #arrTerms == 0 then
 				if in_array(self.db.profile.result, playerName) then
 					if in_array(self.db.profile.result[playerName], lootName) then
@@ -291,16 +325,37 @@ function LootTracker:CHAT_MSG_LOOT(arg1,arg2,_,_,_,arg6)
 
 end
 
-function refreshLootFrame(arr, frame)
-	frame:ReleaseChildren()
+function LootTracker:convertTable()
+	local t = {}
+	local arr = self.db.profile.result
+
 	for k in pairs(arr) do
 		for kk in pairs(arr[k]) do
-			local line = LibStub("AceGUI-3.0"):Create("Label")
-			line:SetText(k.." -> "..kk.." = "..arr[k][kk] )
-			line:SetFullWidth(true)
-			frame:AddChild(line)
+			table.insert(t, {k, kk, arr[k][kk]})
 		end
 	end
+
+	return t
+end
+
+function LootTracker:refreshLootFrame()
+	self:Debug("refreshLootFrame")
+	local f = self.lootFrame
+	f:ReleaseChildren()
+	local arr = self.db.profile.result
+
+	for k in pairs(arr) do
+		for kk in pairs(arr[k]) do
+			self:Debug("Creating label for "..k.." and "..kk)
+			local _line = AceGUI:Create("Label")
+			_line:SetText(k.." -> "..kk.." = "..arr[k][kk] )
+			_line:SetFullWidth(true)
+			f:AddChild(_line)
+		end
+	end
+	f:SetStatusText("Refreshed done")
+	f:DoLayout()
+
 end
 
 function LootTracker:ChatCommand(input)
@@ -363,10 +418,12 @@ function LootTracker:GetResult(info)
 end
 
 function LootTracker:ToggleLootFrame()
-    if (not LT_Lootframe:IsShown()) then
-		refreshLootFrame(self.db.profile.result, LT_Lootframe)
-    	LT_Lootframe:Show()
+	local frame = self.lootFrame
+
+    if (not frame:IsShown()) then
+		self:refreshLootFrame()
+    	frame:Show()
     else
-    	LT_Lootframe:Hide()
+    	frame:Hide()
     end
 end
