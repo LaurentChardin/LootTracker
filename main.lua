@@ -1,5 +1,9 @@
 --LIBS
 local LootTracker = LibStub("AceAddon-3.0"):NewAddon("Loot Tracker", "AceConsole-3.0", "AceEvent-3.0")
+
+local lt_user_realm = GetRealmName()	-- Realm of the current character
+local lt_user_charKey = UnitName("player") .. "-" .. lt_user_realm			-- Character unique name
+
 local AceGUI = LibStub("AceGUI-3.0")
 local ScrollingTable = LibStub("ScrollingTable")
 
@@ -210,6 +214,7 @@ end
 function LootTracker:OnInitialize()
     -- Called when the addon is loaded
 	self.db = LibStub("AceDB-3.0"):New("LootTrackerDB", defaults, true)
+
 	LibStub("AceConfig-3.0"):RegisterOptionsTable("LootTracker", options, {"loottracker", "lt"})
 	self.optionsFrame = LibStub ("AceConfigDialog-3.0"): AddToBlizOptions ("LootTracker", "LootTracker") 
 
